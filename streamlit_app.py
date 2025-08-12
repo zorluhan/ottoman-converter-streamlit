@@ -67,8 +67,6 @@ if prompt:
                     normalize=normalize,
                     force_ng_final=force_ng_final,
                 )
-            st.markdown(f"```
-{output}
-```")
+            st.code(output)
         # Save assistant reply
         st.session_state.messages.append({"role": "assistant", "content": output})
