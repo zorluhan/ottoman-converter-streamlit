@@ -10,13 +10,12 @@ st.caption("Type Turkish text; the assistant returns Ottoman Arabic script using
 # Sidebar settings
 with st.sidebar:
     st.header("Settings")
-    # API key from secrets by default; user can override for this session
-    api_key = st.secrets.get("GOOGLE_API_KEY", "")
-    api_key = st.text_input("Google Gemini API Key", value=api_key, type="password", help="Stored only in this session")
+    # API key is read from secrets or environment; no input field
+    api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     model = st.selectbox("Model", ["gemini-2.5-pro"], index=0)
     temperature = st.slider("Temperature", 0.0, 1.0, 0.0, 0.05)
     normalize = st.checkbox("Normalize Unicode (NFKC)", value=True)
-    force_ng_final = st.checkbox("Force NG final glyph (ﯓ) when input ends with n/ng", value=False)
+    force_ng_final = st.checkbox("Force NG final glyph (ﯓ) when input ends with n/ng", value=True)
 
     kb_file = st.file_uploader("Knowledgebase document (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"], help="Used as reference each turn")
     clear_btn = st.button("Clear chat", use_container_width=True)
@@ -32,7 +31,6 @@ else:
     default_pdf = os.path.join(os.path.dirname(__file__), "ottoman.pdf")
     if os.path.exists(default_pdf):
         kb_path = default_pdf
-        st.info(f"Using default knowledgebase: {default_pdf}")
 
 # Initialize chat history
 if "messages" not in st.session_state or clear_btn:
@@ -48,7 +46,7 @@ prompt = st.chat_input("Türkçe metni yazın…")
 if prompt:
     # Validate API key
     if not api_key:
-        st.error("Please provide your Google Gemini API Key (or set it in Streamlit secrets).")
+        st.error("Please set GOOGLE_API_KEY in Streamlit secrets or environment variables.")
     else:
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
