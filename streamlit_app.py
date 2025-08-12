@@ -3,12 +3,14 @@ import tempfile
 import streamlit as st
 from converter import convert
 
-st.set_page_config(page_title="Ottoman Converter", page_icon="🕌", layout="centered")
-st.title("Ottoman Letter Converter")
-st.caption("Convert modern Turkish text to Ottoman Arabic script using Gemini 2.5 Pro")
+st.set_page_config(page_title="Ottoman Converter (Chat)", page_icon="🕌", layout="centered")
+st.title("Ottoman Letter Converter — Chat")
+st.caption("Type Turkish text; the assistant returns Ottoman Arabic script using Gemini 2.5 Pro.")
 
+# Sidebar settings
 with st.sidebar:
     st.header("Settings")
+    # API key from secrets by default; user can override for this session
     api_key = st.secrets.get("GOOGLE_API_KEY", "")
     api_key = st.text_input("Google Gemini API Key", value=api_key, type="password", help="Stored only in this session")
     model = st.selectbox("Model", ["gemini-2.5-pro"], index=0)
@@ -16,9 +18,10 @@ with st.sidebar:
     normalize = st.checkbox("Normalize Unicode (NFKC)", value=True)
     force_ng_final = st.checkbox("Force NG final glyph (ﯓ) when input ends with n/ng", value=False)
 
-    kb_file = st.file_uploader("Knowledgebase document (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
+    kb_file = st.file_uploader("Knowledgebase document (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"], help="Used as reference each turn")
+    clear_btn = st.button("Clear chat", use_container_width=True)
 
-# Auto-use ottoman.pdf from app directory if no upload
+# Knowledgebase path handling
 kb_path = None
 if kb_file is not None:
     suffix = os.path.splitext(kb_file.name)[1]
@@ -31,33 +34,41 @@ else:
         kb_path = default_pdf
         st.info(f"Using default knowledgebase: {default_pdf}")
 
-text = st.text_area("Input text", height=160, placeholder="Türkçe metni buraya yazın…")
+# Initialize chat history
+if "messages" not in st.session_state or clear_btn:
+    st.session_state.messages = []
 
-col1, col2 = st.columns([1,1])
-with col1:
-    run_clicked = st.button("Convert", use_container_width=True)
-with col2:
-    clear_clicked = st.button("Clear", use_container_width=True)
+# Render history
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-if clear_clicked:
-    st.experimental_rerun()
-
-if run_clicked:
+# Chat input
+prompt = st.chat_input("Türkçe metni yazın…")
+if prompt:
+    # Validate API key
     if not api_key:
         st.error("Please provide your Google Gemini API Key (or set it in Streamlit secrets).")
-    elif not text.strip():
-        st.warning("Please enter some text.")
     else:
-        with st.spinner("Converting…"):
-            output = convert(
-                text=text,
-                kb_path=kb_path,
-                api_key=api_key,
-                model_name=model,
-                temperature=temperature,
-                normalize=normalize,
-                force_ng_final=force_ng_final,
-            )
-        st.subheader("Output")
-        st.code(output)
-        st.caption("Tip: Use a font with Arabic Presentation Forms support (e.g., Noto Naskh Arabic, Scheherazade, Amiri) if some glyphs do not render.")
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Generate assistant reply
+        with st.chat_message("assistant"):
+            with st.spinner("Converting…"):
+                output = convert(
+                    text=prompt,
+                    kb_path=kb_path,
+                    api_key=api_key,
+                    model_name=model,
+                    temperature=temperature,
+                    normalize=normalize,
+                    force_ng_final=force_ng_final,
+                )
+            st.markdown(f"```
+{output}
+```")
+        # Save assistant reply
+        st.session_state.messages.append({"role": "assistant", "content": output})
